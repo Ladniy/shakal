@@ -1,0 +1,17 @@
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# venv
+.venv/
+venv
+
+# uv
+.python-version
+
+# build artifacts
+build/
+dist/
+*.egg-info/
