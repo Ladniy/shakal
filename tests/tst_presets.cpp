@@ -33,14 +33,14 @@ int main()
     using C = EncoderController::Container;
 
     check(shakalPresets().size() == 4, "four presets ported");
-    check(presetByLabel(QStringLiteral("SHAKAL Light")) != nullptr, "Light exists");
-    check(presetByLabel(QStringLiteral("SHAKAL ULTRA")) != nullptr, "ULTRA exists");
+    check(presetByLabel(QStringLiteral("Light")) != nullptr, "Light exists");
+    check(presetByLabel(QStringLiteral("ULTRA")) != nullptr, "ULTRA exists");
 
-    const Preset *light = presetByLabel(QStringLiteral("SHAKAL Light"));
+    const Preset *light = presetByLabel(QStringLiteral("Light"));
     check(light && light->args.contains("libx265"), "Light uses libx265");
     check(light && light->args.contains("copy"), "Light copies audio");
 
-    const Preset *ultra = presetByLabel(QStringLiteral("SHAKAL ULTRA"));
+    const Preset *ultra = presetByLabel(QStringLiteral("ULTRA"));
     check(ultra && ultra->args.contains(
               QStringLiteral("scale=320:180,fps=12,scale=1920:1080:flags=neighbor")),
           "ULTRA keeps its verbatim vf chain");

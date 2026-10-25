@@ -107,7 +107,7 @@ void TstEncoder::cleanEncodeSucceeds()
     QSignalSpy failed(&encoder, &EncoderController::failed);
     QSignalSpy done(&encoder, &EncoderController::runFinished);
 
-    encoder.start(input, preset(QStringLiteral("SHAKAL ULTRA")).args, output, false);
+    encoder.start(input, preset(QStringLiteral("ULTRA")).args, output, false);
     QVERIFY(done.wait(kEncodeTimeoutMs));
 
     QVERIFY2(succeeded.count() == 1,
@@ -139,7 +139,7 @@ void TstEncoder::refusedOverwriteKeepsExistingFile()
     QSignalSpy done(&encoder, &EncoderController::runFinished);
 
     // overwrite == false => -n, and the target already exists: ffmpeg exits 0 here.
-    encoder.start(input, preset(QStringLiteral("SHAKAL ULTRA")).args, output, false);
+    encoder.start(input, preset(QStringLiteral("ULTRA")).args, output, false);
     QVERIFY(done.wait(kEncodeTimeoutMs));
 
     // Exit 0 with no progress=end must not be a success...
@@ -165,7 +165,7 @@ void TstEncoder::muxFailureRemovesJunkFile()
     QSignalSpy succeeded(&encoder, &EncoderController::succeeded);
     QSignalSpy failed(&encoder, &EncoderController::failed);
 
-    encoder.start(input, preset(QStringLiteral("SHAKAL Light")).args, output, true);
+    encoder.start(input, preset(QStringLiteral("Light")).args, output, true);
     finishAndVerify(encoder, succeeded, failed);
 
     QVERIFY2(!QFileInfo::exists(output),

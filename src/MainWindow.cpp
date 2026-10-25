@@ -70,6 +70,10 @@ MainWindow::MainWindow(QWidget *parent)
     m_input->setPlaceholderText(tr("Video to encode"));
     m_fileName->setPlaceholderText(tr("Name without extension"));
     m_progress->setRange(0, 100);
+    // The percentage text reserves space and insets the groove, which is why the bar
+    // rendered narrower than the log pane. Fill the row and drop the text.
+    m_progress->setTextVisible(false);
+    m_progress->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_log->setReadOnly(true);
     m_log->setMaximumBlockCount(kLogMaxBlocks);
     m_cancel->setEnabled(false);
@@ -258,8 +262,13 @@ void MainWindow::setRunning(bool running)
     m_preset->setEnabled(!running);
     m_container->setEnabled(!running);
 
-    if (!running && m_progress->maximum() > 0 && m_progress->value() < 100) {
-        m_progress->setValue(0);
+    if (!running) {
+        // An indeterminate run (duration probe failed) leaves maximum()==0, which used to
+        // make the reset below unreachable -- the bar then animated forever after the encode.
+        m_progress->setRange(0, 100);
+        if (m_progress->value() < 100) {
+            m_progress->setValue(0);
+        }
     }
 }
 
