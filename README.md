@@ -66,8 +66,3 @@ aspect-distorted — that is the preset's intent, not a bug to fix.
 `SHAKAL Light` copies the audio stream. If the source codec cannot live in the
 container you picked, ffmpeg fails at mux time and shakal reports the error and
 removes the partial file it left behind.
-
-## Repo note
-
-shakal was a Python `questionary` TUI until 2026-10-26. The GUI replaced it and the
-Python half was deleted; `PLAN.md` records the design and the verification behind it.

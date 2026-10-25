@@ -4,9 +4,3 @@ build/
 # cmake / qt creator
 *.o
 CMakeLists.txt.user
-
-# python-era leftovers (repo no longer contains Python, keep ignored anyway)
-__pycache__/
-*.pyc
-.venv/
-venv

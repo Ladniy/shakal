@@ -9,8 +9,8 @@ struct Preset
     QStringList args;
 };
 
-// Ported verbatim from shakal/main.py lines 24-79. ULTRA's hardcoded 320:180 ->
-// 1920:1080 aspect-distorts non-16:9 sources on purpose; see PLAN.md "Known caveats".
+// Ported verbatim from the pre-Qt TUI; see commit afd0361. ULTRA's hardcoded
+// 320:180 -> 1920:1080 aspect-distorts non-16:9 sources on purpose, it is not a bug.
 inline QVector<Preset> shakalPresets()
 {
     return {
