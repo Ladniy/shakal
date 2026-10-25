@@ -1,0 +1,124 @@
+# AGENTS.md
+
+Guidance for automated agents working in this repository.
+
+## What shakal is
+
+A native **C++17 / Qt 6 Widgets** desktop app that drives `ffmpeg` through `QProcess` to apply four
+deliberately aggressive video-degradation presets.
+
+There is **no Python in this project**. The original `questionary` TUI was deleted on 2026-10-26 and
+replaced by the Qt app. Do not look for `pyproject.toml`, `uv.lock`, or a venv, and do not propose
+`uv`/`pip`/`pytest` commands — none apply.
+
+## Commands
+
+```sh
+cmake --preset debug            # or: release
+cmake --build --preset debug
+ctest --test-dir build/debug --output-on-failure
+./build/debug/shakal            # GUI
+```
+
+- `CMakePresets.json` pins the generator to **Unix Makefiles** — `ninja` is not installed on the
+  development host.
+- `ctest` target `presets` is pure logic and instant. Target `encoder` (~10 s) spawns real
+  `ffmpeg`/`ffprobe` subprocesses and needs them on `PATH`.
+- Host has Qt **6.12.0**, CMake 4.x, GCC/Clang. CMake 4.x rejects `cmake_minimum_required(VERSION
+  <3.5)`; this project floors at 3.21.
+
+## Layout
+
+| Path | Role |
+| --- | --- |
+| `src/main.cpp` | `QApplication` bootstrap |
+| `src/Presets.h` | The preset table — data only, no logic |
+| `src/EncoderController.{h,cpp}` | All ffmpeg/ffprobe interaction. Owns argv assembly, progress parsing, cancel, cleanup |
+| `src/MainWindow.{h,cpp}` | The form, overwrite dialog, progress bar, log pane |
+| `tests/tst_presets.cpp` | argv assembly, container suffixing, preset table |
+| `tests/tst_encoder.cpp` | QtTest round-trips against real ffmpeg: success, refused overwrite, mux failure, cancel |
+
+Keep encode-path logic in `EncoderController`. `MainWindow` should stay a thin view.
+
+## The success invariant — do not simplify
+
+`EncoderController::onProcessFinished` treats an encode as successful only when **all three** hold:
+`progress=end` was seen, **and** exit code is 0, **and** the output file exists and is non-empty.
+
+This is not defensive padding. Each signal is individually unreliable, verified on the host's ffmpeg
+(Lavc 63.1.102):
+
+| Situation | exit | `progress=end` | output file |
+| --- | --- | --- | --- |
+| Refused overwrite (`-n`, target exists) | **0** | absent | non-empty (the user's pre-existing file) |
+| Mux rejected (e.g. HEVC into WebM) | 234 | **present** | **262-byte stub written before the failure** |
+| Graceful cancel via `q` | 0 | **present** | valid, playable, truncated |
+
+So: exit code alone lies, `progress=end` alone lies, and file size alone lies. If you "clean up" the
+condition to just check the exit code, you reintroduce silent success on failed encodes.
+
+Related ordering constraints, both load-bearing:
+
+1. **The cancel check must precede the success check.** A graceful `q` cancel reports `progress=end`,
+   exit 0, and leaves a valid short file — without the early return, a cancelled encode is announced
+   as a success.
+2. **`errorOccurred` arrives before `finished`.** A cancel escalated to `terminate()`/`kill()` surfaces
+   first as `QProcess::Crashed`; `onProcessError` must stay silent while `m_cancelRequested` is set so
+   the outcome is reported once, as "Cancelled".
+
+## Output-file rules
+
+- Never pass `-nostdin`. Stdin must stay open so `q` can request a graceful stop.
+- Progress is read from **stdout only** (`-progress pipe:1`); stderr is the human log pane. The two
+  channels are parsed separately and never merged.
+- Use `out_time_us`, not `out_time_ms`, for elapsed time.
+- `-y` is passed **only** after the user explicitly confirms an overwrite; otherwise `-n` is passed so
+  ffmpeg cannot hang on an interactive prompt.
+- On failure or cancel, `discardOutputIfOurs()` deletes the partial file — but **never** a pre-existing
+  file that `-n` protected. That distinction is what keeps a refused overwrite from destroying the
+  user's earlier encode; `tst_encoder` asserts it by checking sentinel bytes survive.
+
+## UI directives (from the user, not style preferences)
+
+- **Preset labels are bare**: `Light`, `Medium`, `Strong`, `ULTRA`. No `SHAKAL ` prefix.
+- **The progress bar is a plain, full-width bar with no percentage text.** `setTextVisible(false)` is
+  deliberate: the percentage reserves space and insets the groove, making the bar narrower than the log
+  pane below it. Keep it spanning the full row.
+- Indeterminate (gradient) mode is wanted when duration is unknown — but the bar must return to a
+  determinate range when the run ends.
+- ULTRA's hardcoded `scale=320:180,fps=12,scale=1920:1080` **aspect-distorts non-16:9 sources on
+  purpose**. Do not "fix" it; maximum degradation is the preset's point.
+
+## Known open issue
+
+**WebM is offered in the container combo but cannot work with any preset.** Every preset hardcodes
+`libx265`, and the WebM muxer accepts only VP8/VP9/AV1 + Vorbis/Opus. Selecting it fails at mux time
+with exit 234. The failure is handled correctly (reported, stub removed); the UI option is the bug.
+Resolution is undecided — dropping the option, or mapping WebM to VP9/Opus, are both open. Ask before
+changing this.
+
+## Out of scope
+
+Batch/queue, drag-and-drop, folder input, user-editable presets, preset persistence, video preview,
+CMake `install()` targets, `.desktop` entries, CPack packaging. Delivery is build-dir only.
+
+## Verifying GUI changes
+
+A green build and passing tests are **not** sufficient to claim UI work is done.
+
+1. Build, then launch the real binary on the desktop: `QT_QPA_PLATFORM=wayland ./build/debug/shakal`.
+2. Capture and inspect actual pixels. On this host (KDE Plasma on Wayland) use `spectacle -b -n -o
+   shot.png`; `grim` is not installed and ImageMagick's `import` cannot see native Wayland windows.
+   The desktop is 5120×1440 — downscale or crop before viewing, and locate the window in a full-desktop
+   overview first, since it does not reopen at a fixed position.
+3. An `offscreen` platform run proves construction only. Never report "the GUI works" from it.
+4. **Interactive click-through is the user's own task.** Launch the app and hand it over; do not
+   attempt to synthesize input or narrate a test you did not run.
+
+## Git conventions
+
+- Commit subjects are **lowercase, terse, no conventional-commit prefixes** (`add new presets`,
+  `clean up`). Bodies explain *why*, in plain prose.
+- Commit only when asked. Never push without an explicit request.
+- Stage only the paths belonging to the change — not `git add -A`.
+- The three Qt6 commits are currently **local only**; `origin/main` still points at the Python history.
