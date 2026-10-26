@@ -2,6 +2,7 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
@@ -11,6 +12,58 @@ constexpr int kLogTailLines = 12;
 constexpr int kCancelGraceMs = 5000;
 constexpr int kKillGraceMs = 3000;
 constexpr int kStdinFlushMs = 200;
+
+// The WebM muxer accepts only VP8/VP9/AV1 video and Vorbis/Opus audio, while every preset
+// is written in libx265/AAC terms, so the codec flags must be re-expressed per container.
+// Verified on this host 2026-10-26: libx265 into webm dies at mux with exit 234 after the
+// muxer has written a 262-byte stub, and copying AAC into webm fails the same way.
+const QHash<QString, QString> kVideoCodec{{QStringLiteral("libx265"),
+                                           QStringLiteral("libvpx-vp9")}};
+const QHash<QString, QString> kAudioCodec{{QStringLiteral("aac"), QStringLiteral("libopus")},
+                                          {QStringLiteral("copy"), QStringLiteral("libopus")}};
+
+// x265's speed names are private to x265: libvpx ignores -preset entirely, only warning that
+// the option "has not been used". -cpu-used is the same knob (higher = faster), and these four
+// values stay inside the 0-4 range that works in every libvpx rate-control mode.
+const QHash<QString, QString> kSpeed{{QStringLiteral("slow"), QStringLiteral("1")},
+                                     {QStringLiteral("medium"), QStringLiteral("2")},
+                                     {QStringLiteral("fast"), QStringLiteral("3")},
+                                     {QStringLiteral("ultrafast"), QStringLiteral("4")}};
+
+// A codec outside these tables is passed through untouched rather than overwritten: the
+// muxer's own "Only VP8 or VP9..." error then reaches the log pane instead of a silently
+// substituted encoder, and the failure stays visible if a preset is added without mapping.
+QStringList argsForContainer(const QStringList &presetArgs, EncoderController::Container container)
+{
+    if (container != EncoderController::Container::Webm) {
+        return presetArgs;
+    }
+
+    QStringList adapted;
+    adapted.reserve(presetArgs.size());
+
+    for (int i = 0; i < presetArgs.size(); ++i) {
+        const QString &arg = presetArgs.at(i);
+        const QString next = i + 1 < presetArgs.size() ? presetArgs.at(i + 1) : QString();
+
+        if (arg == QLatin1String("-vcodec") && kVideoCodec.contains(next)) {
+            adapted << arg << kVideoCodec.value(next);
+            ++i;
+        } else if (arg == QLatin1String("-acodec") && kAudioCodec.contains(next)) {
+            adapted << arg << kAudioCodec.value(next);
+            ++i;
+        } else if (arg == QLatin1String("-preset")) {
+            if (kSpeed.contains(next)) {
+                adapted << QStringLiteral("-cpu-used") << kSpeed.value(next);
+            }
+            ++i;
+        } else {
+            adapted << arg;
+        }
+    }
+
+    return adapted;
+}
 
 // "00:00:12.345000" -> microseconds, for ffmpeg builds without out_time_us.
 qint64 parseClock(const QByteArray &value)
@@ -88,12 +141,13 @@ QString EncoderController::applyContainer(const QString &fileName, Container con
 }
 
 QStringList EncoderController::buildCommand(const QString &input, const QStringList &presetArgs,
-                                            const QString &output, bool overwrite)
+                                            const QString &output, bool overwrite,
+                                            Container container)
 {
     QStringList cmd;
     cmd << QStringLiteral("ffmpeg") << QStringLiteral("-hide_banner")
         << QStringLiteral("-progress") << QStringLiteral("pipe:1")
-        << QStringLiteral("-i") << input << presetArgs;
+        << QStringLiteral("-i") << input << argsForContainer(presetArgs, container);
 
     // -n as well as -y: an unprompted refusal would otherwise let ffmpeg wait on a
     // stdin that is a pipe, and it exits 0 when it declines to overwrite.
@@ -108,7 +162,7 @@ bool EncoderController::isRunning() const
 }
 
 void EncoderController::start(const QString &input, const QStringList &presetArgs,
-                              const QString &output, bool overwrite)
+                              const QString &output, bool overwrite, Container container)
 {
     if (isRunning()) {
         return;
@@ -118,6 +172,7 @@ void EncoderController::start(const QString &input, const QStringList &presetArg
     m_presetArgs = presetArgs;
     m_output = output;
     m_overwrite = overwrite;
+    m_container = container;
     m_outputPreExisted = QFileInfo::exists(output);
 
     m_totalUs = 0;
@@ -172,7 +227,8 @@ void EncoderController::onProbeError(QProcess::ProcessError error)
 
 void EncoderController::launch()
 {
-    const QStringList cmd = buildCommand(m_input, m_presetArgs, m_output, m_overwrite);
+    const QStringList cmd =
+        buildCommand(m_input, m_presetArgs, m_output, m_overwrite, m_container);
     emit logLine(QStringLiteral("Running: %1").arg(cmd.join(QLatin1Char(' '))));
     m_ffmpeg->start(cmd.first(), cmd.mid(1));
 }

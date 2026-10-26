@@ -12,6 +12,8 @@
 #include <QtTest>
 
 namespace {
+using Container = EncoderController::Container;
+
 constexpr int kEncodeTimeoutMs = 180000;
 constexpr int kCancelWaitMs = 15000;
 
@@ -45,6 +47,7 @@ private slots:
     void initTestCase();
 
     void cleanEncodeSucceeds();
+    void webmEncodeUsesWebmCodecs();
     void refusedOverwriteKeepsExistingFile();
     void muxFailureRemovesJunkFile();
     void cancelIsNotReportedAsSuccess();
@@ -52,6 +55,7 @@ private slots:
 private:
     QString makeInput(const QString &name, const QString &size, const QString &seconds,
                       const QString &audioCodec, const QString &container);
+    QStringList probeCodecNames(const QString &path);
     void finishAndVerify(EncoderController &encoder, QSignalSpy &succeeded, QSignalSpy &failed);
 
     QTemporaryDir m_dir;
@@ -84,6 +88,21 @@ void TstEncoder::initTestCase()
     QVERIFY2(QFile::exists(QStringLiteral("/usr/bin/ffprobe")), "ffprobe not installed");
 }
 
+QStringList TstEncoder::probeCodecNames(const QString &path)
+{
+    QProcess probe;
+    probe.start(QStringLiteral("ffprobe"),
+                {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-show_entries"),
+                 QStringLiteral("stream=codec_name"), QStringLiteral("-of"),
+                 QStringLiteral("csv=p=0"), path});
+
+    if (!probe.waitForStarted(kEncodeTimeoutMs) || !probe.waitForFinished(kEncodeTimeoutMs)) {
+        return {};
+    }
+    return QString::fromUtf8(probe.readAllStandardOutput())
+        .split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+}
+
 void TstEncoder::finishAndVerify(EncoderController &encoder, QSignalSpy &succeeded,
                                  QSignalSpy &failed)
 {
@@ -107,7 +126,7 @@ void TstEncoder::cleanEncodeSucceeds()
     QSignalSpy failed(&encoder, &EncoderController::failed);
     QSignalSpy done(&encoder, &EncoderController::runFinished);
 
-    encoder.start(input, preset(QStringLiteral("ULTRA")).args, output, false);
+    encoder.start(input, preset(QStringLiteral("ULTRA")).args, output, false, Container::Mp4);
     QVERIFY(done.wait(kEncodeTimeoutMs));
 
     QVERIFY2(succeeded.count() == 1,
@@ -115,6 +134,37 @@ void TstEncoder::cleanEncodeSucceeds()
                                          : failed.at(0).at(0).toString()));
     QCOMPARE(failed.count(), 0);
     QVERIFY(QFileInfo(output).size() > 0);
+}
+
+void TstEncoder::webmEncodeUsesWebmCodecs()
+{
+    // The bug: every preset names libx265, and the WebM muxer refuses HEVC outright.
+    // Light is the harshest case because its -acodec copy cannot be honoured either.
+    const QString input = makeInput(QStringLiteral("src_webm"), QStringLiteral("320x240"),
+                                    QStringLiteral("1"), QStringLiteral("aac"),
+                                    QStringLiteral("mp4"));
+    QVERIFY(!input.isEmpty());
+    const QString output = m_dir.filePath(QStringLiteral("encoded.webm"));
+
+    EncoderController encoder;
+    QSignalSpy succeeded(&encoder, &EncoderController::succeeded);
+    QSignalSpy failed(&encoder, &EncoderController::failed);
+    QSignalSpy done(&encoder, &EncoderController::runFinished);
+
+    encoder.start(input, preset(QStringLiteral("Light")).args, output, false, Container::Webm);
+    QVERIFY(done.wait(kEncodeTimeoutMs));
+
+    QVERIFY2(succeeded.count() == 1,
+             qPrintable(failed.isEmpty() ? QStringLiteral("no signals at all")
+                                         : failed.at(0).at(0).toString()));
+    QCOMPARE(failed.count(), 0);
+
+    // A file that merely exists proves nothing: assert what the container actually got.
+    const QStringList codecs = probeCodecNames(output);
+    QVERIFY2(codecs.contains(QStringLiteral("vp9")),
+             qPrintable(QStringLiteral("no VP9 stream, got: ") + codecs.join(QLatin1Char(' '))));
+    QVERIFY2(codecs.contains(QStringLiteral("opus")),
+             qPrintable(QStringLiteral("no Opus stream, got: ") + codecs.join(QLatin1Char(' '))));
 }
 
 void TstEncoder::refusedOverwriteKeepsExistingFile()
@@ -139,7 +189,7 @@ void TstEncoder::refusedOverwriteKeepsExistingFile()
     QSignalSpy done(&encoder, &EncoderController::runFinished);
 
     // overwrite == false => -n, and the target already exists: ffmpeg exits 0 here.
-    encoder.start(input, preset(QStringLiteral("ULTRA")).args, output, false);
+    encoder.start(input, preset(QStringLiteral("ULTRA")).args, output, false, Container::Mp4);
     QVERIFY(done.wait(kEncodeTimeoutMs));
 
     // Exit 0 with no progress=end must not be a success...
@@ -153,8 +203,10 @@ void TstEncoder::refusedOverwriteKeepsExistingFile()
 
 void TstEncoder::muxFailureRemovesJunkFile()
 {
-    // Verified on this host: AC3 copied into webm fails with exit 234 after ffmpeg has
-    // already written a ~262 byte stub, and it still prints progress=end.
+    // Verified on this host: a codec the WebM muxer refuses fails with exit 234 after ffmpeg
+    // has already written a ~262 byte stub, and it still prints progress=end.
+    // Light + webm can no longer reach this path because the mapping re-expresses libx265 as
+    // VP9, so the rejection is forced through a codec the mapping deliberately leaves alone.
     const QString input = makeInput(QStringLiteral("src_ac3"), QStringLiteral("640x360"),
                                     QStringLiteral("2"), QStringLiteral("ac3"),
                                     QStringLiteral("mkv"));
@@ -165,7 +217,10 @@ void TstEncoder::muxFailureRemovesJunkFile()
     QSignalSpy succeeded(&encoder, &EncoderController::succeeded);
     QSignalSpy failed(&encoder, &EncoderController::failed);
 
-    encoder.start(input, preset(QStringLiteral("Light")).args, output, true);
+    encoder.start(input,
+                  {QStringLiteral("-vcodec"), QStringLiteral("libx264"), QStringLiteral("-acodec"),
+                   QStringLiteral("copy")},
+                  output, true, Container::Webm);
     finishAndVerify(encoder, succeeded, failed);
 
     QVERIFY2(!QFileInfo::exists(output),
@@ -192,7 +247,7 @@ void TstEncoder::cancelIsNotReportedAsSuccess()
                    QStringLiteral("22"), QStringLiteral("-preset"), QStringLiteral("veryslow"),
                    QStringLiteral("-threads"), QStringLiteral("1"), QStringLiteral("-acodec"),
                    QStringLiteral("copy")},
-                  output, true);
+                  output, true, Container::Mp4);
 
     QVERIFY(progressed.wait(kCancelWaitMs));
     encoder.cancel();

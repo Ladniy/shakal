@@ -89,13 +89,31 @@ Related ordering constraints, both load-bearing:
 - ULTRA's hardcoded `scale=320:180,fps=12,scale=1920:1080` **aspect-distorts non-16:9 sources on
   purpose**. Do not "fix" it; maximum degradation is the preset's point.
 
-## Known open issue
+## Container/codec mapping (WebM)
 
-**WebM is offered in the container combo but cannot work with any preset.** Every preset hardcodes
-`libx265`, and the WebM muxer accepts only VP8/VP9/AV1 + Vorbis/Opus. Selecting it fails at mux time
-with exit 234. The failure is handled correctly (reported, stub removed); the UI option is the bug.
-Resolution is undecided — dropping the option, or mapping WebM to VP9/Opus, are both open. Ask before
-changing this.
+Every preset is written in `libx265` + AAC terms, but the WebM muxer accepts only VP8/VP9/AV1 video
+and Vorbis/Opus audio. Selecting WebM used to fail at mux time with exit 234 for all four presets.
+
+`EncoderController::buildCommand` now re-expresses the codec flags when the container is WebM:
+
+| Preset flag | WebM argv |
+| --- | --- |
+| `-vcodec libx265` | `-vcodec libvpx-vp9` |
+| `-acodec aac` | `-acodec libopus` |
+| `-acodec copy` (Light) | `-acodec libopus` — stream-copying AAC into WebM cannot work |
+| `-preset slow/medium/fast/ultrafast` | `-cpu-used 1/2/3/4` |
+
+Keep the CRF numbers and the `-vf` chain as they are: they *are* the degradation, and VP9's CRF range
+(0-63) covers all four values. The mapping is deliberately not a blind overwrite — a codec outside the
+tables is passed through untouched so ffmpeg's own `Only VP8 or VP9...` error reaches the log pane
+instead of an encoder being substituted silently. That choice is also what keeps a real mux rejection
+reachable for `muxFailureRemovesJunkFile`: `Light` + WebM can no longer fail.
+
+`-preset` is dropped rather than kept because libvpx ignores it, emitting "Codec AVOption preset has
+not been used" into the log for a flag that does nothing. `-cpu-used` is the equivalent knob (higher =
+faster), and the four values stay inside 0-4, which works in every libvpx rate-control mode. mp4 and
+mkv are permissive (HEVC, and even copied Vorbis/Opus, all mux fine on this host) and get the preset
+args unchanged.
 
 ## Out of scope
 

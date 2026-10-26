@@ -244,7 +244,7 @@ void MainWindow::startEncode()
 
     m_log->appendPlainText(tr("Preset: %1").arg(preset.label));
     setRunning(true);
-    m_encoder->start(input, preset.args, output, overwrite);
+    m_encoder->start(input, preset.args, output, overwrite, currentContainer());
 }
 
 void MainWindow::cancelEncode()

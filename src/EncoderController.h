@@ -25,13 +25,13 @@ public:
     static QString suffixFor(Container container);
     static QString applyContainer(const QString &fileName, Container container);
     static QStringList buildCommand(const QString &input, const QStringList &presetArgs,
-                                    const QString &output, bool overwrite);
+                                    const QString &output, bool overwrite, Container container);
 
     bool isRunning() const;
 
 public slots:
     void start(const QString &input, const QStringList &presetArgs, const QString &output,
-               bool overwrite);
+               bool overwrite, Container container);
     void cancel();
 
 signals:
@@ -63,6 +63,7 @@ private:
     QString m_input;
     QString m_output;
     QStringList m_presetArgs;
+    Container m_container = Container::Mp4;
     bool m_overwrite = false;
     bool m_outputPreExisted = false;
 
