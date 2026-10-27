@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=shakal
+GenericName=Video compressor
+Comment=Apply one deliberately aggressive ffmpeg preset to a video file
+Exec=shakal
+Icon=shakal
+Terminal=false
+Categories=AudioVideo;Video;Qt;
+Keywords=ffmpeg;compress;encode;

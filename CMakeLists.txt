@@ -21,6 +21,11 @@ qt_add_executable(shakal
 target_link_libraries(shakal PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 target_include_directories(shakal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+install(TARGETS shakal RUNTIME DESTINATION bin)
+install(FILES packaging/shakal.desktop DESTINATION share/applications)
+install(FILES packaging/icons/hicolor/scalable/apps/shakal.svg
+        DESTINATION share/icons/hicolor/scalable/apps)
+
 enable_testing()
 
 # Pure logic (argv assembly, container suffixes) — no display required.

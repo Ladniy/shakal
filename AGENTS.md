@@ -39,6 +39,9 @@ ctest --test-dir build/debug --output-on-failure
 | `src/MainWindow.{h,cpp}` | The form, overwrite dialog, progress bar, log pane |
 | `tests/tst_presets.cpp` | argv assembly, container suffixing, preset table |
 | `tests/tst_encoder.cpp` | QtTest round-trips against real ffmpeg: success, refused overwrite, mux failure, cancel |
+| `packaging/shakal.desktop` | Menu entry; `Exec=shakal` takes no file argument because `main()` ignores argv |
+| `packaging/icons/hicolor/scalable/apps/shakal.svg` | Placeholder icon — replace the file, not the install path |
+| `packaging/aur/PKGBUILD` | AUR `shakal-git` recipe |
 
 Keep encode-path logic in `EncoderController`. `MainWindow` should stay a thin view.
 
@@ -141,10 +144,33 @@ copied Vorbis/Opus, all mux fine on this host) and get the args unchanged.
 
 ## Out of scope
 
-Batch/queue, folder input, user-editable presets, preset persistence, video preview,
-CMake `install()` targets, `.desktop` entries, CPack packaging. Delivery is build-dir only.
-Drag-and-drop is **no longer** out of scope: the Input file field takes drops by user request on
-2026-10-27, and a preset *picker* is gone for good — the ULTRA checkbox replaced it the same day.
+Batch/queue, folder input, user-editable presets, preset persistence, video preview, CPack packaging.
+Installing the app is **no longer** out of scope: `install()` rules and a `.desktop` entry exist for the
+AUR package — see `## Packaging`. Drag-and-drop is **no longer** out of scope either: the Input file
+field takes drops by user request on 2026-10-27, and a preset *picker* is gone for good — the ULTRA
+checkbox replaced it the same day.
+
+## Packaging
+
+shakal is published to the AUR as **`shakal-git`**. The PKGBUILD lives in `packaging/aur/` so it is
+versioned next to the code it builds, and is copied into the AUR checkout when publishing.
+
+- It is a VCS package because the upstream repo has **no tags**: `pkgver()` falls back to `v0.1.0` and
+  counts commits. Adding real tags later is what would make a non-`-git` `shakal` package possible.
+- `build()` configures CMake directly (`-DCMAKE_INSTALL_PREFIX=/usr`, Release) instead of using
+  `--preset`, so the flags from `makepkg.conf` reach the compiler. `package()` calls `cmake --install`
+  and installs `LICENSE` into `/usr/share/licenses/$pkgname` itself — CMake does not know the package
+  name.
+- `depends` are `qt6-base`, `ffmpeg`, `hicolor-icon-theme`. There is deliberately **no** `qt6-wayland`
+  line: `pacman -Ql qt6-base` on 2026-10-27 showed `plugins/platforms/libqwayland.so` ships inside
+  `qt6-base`, so Wayland works without an extra dep. Re-verify before adding one.
+- `check()` runs **both** suites, so a builder whose ffmpeg lacks `libx265` fails the package build.
+  That is intended: it catches a host that could not run shakal either.
+- `.SRCINFO` is **not** tracked here on purpose: it is generated, and its `pkgver` goes stale the moment
+  `main` moves. Generate it into the AUR checkout at publish time with `makepkg --printsrcinfo > .SRCINFO`
+  and never hand-edit it. If it appears in `packaging/aur/`, it is a local artifact — do not add it.
+- Publishing is a public action: never `git push` to `aur@aur4.archlinux.org` without an explicit
+  request. The AUR key is configured separately from the ordinary archlinux.org SSH key.
 
 ## Verifying GUI changes
 

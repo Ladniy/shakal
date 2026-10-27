@@ -4,3 +4,10 @@ build/
 # cmake / qt creator
 *.o
 CMakeLists.txt.user
+
+# makepkg output (run from packaging/aur; the root src/ holds sources, so these are scoped)
+pkg/
+*.pkg.tar.*
+.SRCINFO
+packaging/aur/src/
+packaging/aur/pkg/

@@ -9,6 +9,22 @@ A Qt 6 desktop front end for a deliberately aggressive `ffmpeg` preset.
 - Qt 6.5 or newer (`Core`, `Gui`, `Widgets`, and `Test` for the tests)
 - `ffmpeg` and `ffprobe` on `PATH`, built with `libx265`
 
+## Install
+
+On Arch Linux, install the VCS package from the AUR — it builds `main` at install time:
+
+```sh
+paru -S shakal-git     # or: yay -S shakal-git
+```
+
+That puts `shakal` on `PATH` and adds a menu entry with an icon. The package recipe lives in
+`packaging/aur/PKGBUILD`; to build it by hand:
+
+```sh
+cd packaging/aur
+makepkg -sri
+```
+
 ## Build
 
 ```sh
