@@ -39,7 +39,9 @@ Two suites run:
 
 ## Usage
 
-Fill in the form: input file, preset, output directory, output name, container. The
+Fill in the form: input file, output directory, output name, container. Dropping a file
+onto the **Input file** field or picking it with **Browse…** also fills in the output
+directory from the file's own folder, and the name field if it is still empty. The
 container combo appends its own suffix, so the name field needs no extension. If the
 target file exists you are asked to **Overwrite**, **Choose another name**, or
 **Cancel** before anything runs.
@@ -50,19 +52,19 @@ because ffmpeg exits 0 after declining to overwrite a file.
 
 ## Presets
 
-All four encode video with `libx265`.
+There is no preset picker. Every encode runs the **default** preset unless the
+**Shakal ULTRA** checkbox next to the container combo is ticked, which is the only way
+to reach ULTRA. Both presets encode video with `libx265`.
 
 | Preset | CRF | Encoder speed | Audio |
 | --- | --- | --- | --- |
-| Light | 22 | slow | copied, untouched |
-| Medium | 26 | medium | AAC 128k |
-| Strong | 32 | fast | AAC 96k |
+| default | 32 | fast | AAC 96k |
 | ULTRA | 42 | ultrafast | AAC 48k, plus `scale=320:180,fps=12,scale=1920:1080:flags=neighbor` |
 
 ULTRA downscales to 320x180 at 12 fps and nearest-neighbour upscales back to
 1920x1080. Those numbers are hardcoded, so a source that is not 16:9 gets
 aspect-distorted — that is the preset's intent, not a bug to fix.
 
-`Light` copies the audio stream. If the source codec cannot live in the
-container you picked, ffmpeg fails at mux time and shakal reports the error and
-removes the partial file it left behind.
+Both presets re-encode audio, so no container choice can fail on a copied stream.
+WebM is the exception at the *video* level: it takes no HEVC at all, so shakal
+re-expresses the codec flags for that container — see `AGENTS.md`.

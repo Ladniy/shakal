@@ -3,8 +3,10 @@
 #include "EncoderController.h"
 #include "Presets.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QDragMoveEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -13,10 +15,12 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QUrl>
 #include <QVBoxLayout>
 
 namespace {
@@ -47,8 +51,8 @@ MainWindow::MainWindow(QWidget *parent)
       m_input(new QLineEdit(this)),
       m_outputDir(new QLineEdit(this)),
       m_fileName(new QLineEdit(this)),
-      m_preset(new QComboBox(this)),
       m_container(new QComboBox(this)),
+      m_ultra(new QCheckBox(tr("Shakal ULTRA"), this)),
       m_encode(new QPushButton(tr("Encode"), this)),
       m_cancel(new QPushButton(tr("Cancel"), this)),
       m_progress(new QProgressBar(this)),
@@ -58,16 +62,15 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle(tr("shakal"));
     resize(720, 480);
 
-    const QVector<Preset> presets = shakalPresets();
-    for (const Preset &preset : presets) {
-        m_preset->addItem(preset.label);
-    }
-
     m_container->addItem(QStringLiteral("mp4"), int(EncoderController::Container::Mp4));
     m_container->addItem(QStringLiteral("mkv"), int(EncoderController::Container::Mkv));
     m_container->addItem(QStringLiteral("webm"), int(EncoderController::Container::Webm));
 
     m_input->setPlaceholderText(tr("Video to encode"));
+    // Scoped to this field rather than the whole window, so a drop meant for another widget
+    // is never swallowed.
+    m_input->setAcceptDrops(true);
+    m_input->installEventFilter(this);
     m_fileName->setPlaceholderText(tr("Name without extension"));
     m_progress->setRange(0, 100);
     // The percentage text reserves space and insets the groove, which is why the bar
@@ -88,12 +91,16 @@ MainWindow::MainWindow(QWidget *parent)
     auto *browseDir = new QPushButton(tr("Browse..."), this);
     dirRow->addWidget(browseDir);
 
+    auto *containerRow = new QHBoxLayout;
+    containerRow->addWidget(m_container);
+    containerRow->addWidget(m_ultra);
+    containerRow->addStretch();
+
     auto *inputs = new QFormLayout;
     inputs->addRow(tr("Input file"), inputRow);
-    inputs->addRow(tr("Preset"), m_preset);
     inputs->addRow(tr("Output directory"), dirRow);
     inputs->addRow(tr("Output name"), m_fileName);
-    inputs->addRow(tr("Container"), m_container);
+    inputs->addRow(tr("Container"), containerRow);
 
     auto *actions = new QHBoxLayout;
     actions->addWidget(m_encode);
@@ -126,15 +133,47 @@ MainWindow::MainWindow(QWidget *parent)
     }
 }
 
+void MainWindow::applyInputPath(const QString &path)
+{
+    m_input->setText(path);
+
+    const QFileInfo info(path);
+    m_outputDir->setText(info.absolutePath());
+    if (m_fileName->text().isEmpty()) {
+        m_fileName->setText(info.completeBaseName());
+    }
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    const QEvent::Type type = event->type();
+    if (watched == m_input
+        && (type == QEvent::DragEnter || type == QEvent::DragMove || type == QEvent::Drop)) {
+        // QDragEnterEvent and QDragMoveEvent both derive from QDropEvent, so one cast covers
+        // all three; anything that is not a drop is left to QWidget::eventFilter below.
+        auto *drop = static_cast<QDropEvent *>(event);
+
+        if (type == QEvent::Drop) {
+            const QList<QUrl> urls = drop->mimeData()->urls();
+            if (!urls.isEmpty() && urls.first().isLocalFile()) {
+                applyInputPath(urls.first().toLocalFile());
+                drop->acceptProposedAction();
+                return true;
+            }
+        } else if (drop->mimeData()->hasUrls()) {
+            drop->acceptProposedAction();
+            return true;
+        }
+    }
+
+    return QWidget::eventFilter(watched, event);
+}
+
 void MainWindow::browseInput()
 {
     const QString chosen = QFileDialog::getOpenFileName(this, tr("Choose input file"));
     if (!chosen.isEmpty()) {
-        m_input->setText(chosen);
-        if (m_fileName->text().isEmpty()) {
-            QFileInfo info(chosen);
-            m_fileName->setText(info.completeBaseName());
-        }
+        applyInputPath(chosen);
     }
 }
 
@@ -240,11 +279,19 @@ void MainWindow::startEncode()
     }
 
     const QVector<Preset> presets = shakalPresets();
-    const Preset &preset = presets.at(m_preset->currentIndex());
+    const QString wanted = m_ultra->isChecked() ? QStringLiteral("ULTRA")
+                                                : QStringLiteral("default");
+    const Preset *chosen = &presets.first();
+    for (const Preset &preset : presets) {
+        if (preset.label == wanted) {
+            chosen = &preset;
+            break;
+        }
+    }
 
-    m_log->appendPlainText(tr("Preset: %1").arg(preset.label));
+    m_log->appendPlainText(tr("Preset: %1").arg(chosen->label));
     setRunning(true);
-    m_encoder->start(input, preset.args, output, overwrite, currentContainer());
+    m_encoder->start(input, chosen->args, output, overwrite, currentContainer());
 }
 
 void MainWindow::cancelEncode()
@@ -259,8 +306,8 @@ void MainWindow::setRunning(bool running)
     m_input->setEnabled(!running);
     m_outputDir->setEnabled(!running);
     m_fileName->setEnabled(!running);
-    m_preset->setEnabled(!running);
     m_container->setEnabled(!running);
+    m_ultra->setEnabled(!running);
 
     if (!running) {
         // An indeterminate run (duration probe failed) leaves maximum()==0, which used to

@@ -34,13 +34,17 @@ int main()
 {
     using C = EncoderController::Container;
 
-    check(shakalPresets().size() == 4, "four presets ported");
-    check(presetByLabel(QStringLiteral("Light")) != nullptr, "Light exists");
-    check(presetByLabel(QStringLiteral("ULTRA")) != nullptr, "ULTRA exists");
+    check(shakalPresets().size() == 2, "Light and Medium are gone");
+    check(presetByLabel(QStringLiteral("Light")) == nullptr, "Light no longer exists");
+    check(presetByLabel(QStringLiteral("Medium")) == nullptr, "Medium no longer exists");
+    check(presetByLabel(QStringLiteral("Strong")) == nullptr, "Strong was renamed");
 
-    const Preset *light = presetByLabel(QStringLiteral("Light"));
-    check(light && light->args.contains("libx265"), "Light uses libx265");
-    check(light && light->args.contains("copy"), "Light copies audio");
+    const Preset *def = presetByLabel(QStringLiteral("default"));
+    check(def != nullptr, "default exists");
+    check(def && def->args.contains("libx265"), "default uses libx265");
+    check(def && def->args.contains(QStringLiteral("32")), "default keeps Strong's CRF 32");
+    check(def && def->args.contains("aac"), "default re-encodes audio");
+    check(def && !def->args.contains("copy"), "no preset stream-copies audio any more");
 
     const Preset *ultra = presetByLabel(QStringLiteral("ULTRA"));
     check(ultra && ultra->args.contains(
@@ -86,17 +90,19 @@ int main()
 
     // WebM refuses the codecs every preset is written in, so buildCommand re-expresses them.
     // The CRF number and the vf chain are the degradation itself and must survive untouched.
-    const QStringList webmLight = EncoderController::buildCommand(
-        QStringLiteral("/in.mp4"), light->args, QStringLiteral("/out/clip.webm"), true, C::Webm);
-    check(webmLight.indexOf(QStringLiteral("-vcodec")) + 1
-                  == webmLight.indexOf(QStringLiteral("libvpx-vp9")),
+    const QStringList webmDefault = EncoderController::buildCommand(
+        QStringLiteral("/in.mp4"), def->args, QStringLiteral("/out/clip.webm"), true, C::Webm);
+    check(webmDefault.indexOf(QStringLiteral("-vcodec")) + 1
+                  == webmDefault.indexOf(QStringLiteral("libvpx-vp9")),
           "webm swaps libx265 for VP9");
-    check(!webmLight.contains(QStringLiteral("libx265")), "webm argv keeps no HEVC encoder");
-    check(webmLight.indexOf(QStringLiteral("-acodec")) + 1
-                  == webmLight.indexOf(QStringLiteral("libopus")),
+    check(!webmDefault.contains(QStringLiteral("libx265")), "webm argv keeps no HEVC encoder");
+    check(webmDefault.indexOf(QStringLiteral("-acodec")) + 1
+                  == webmDefault.indexOf(QStringLiteral("libopus")),
           "webm re-encodes audio as Opus");
-    check(!webmLight.contains(QStringLiteral("copy")), "webm does not stream-copy audio");
-    check(webmLight.contains(QStringLiteral("22")), "webm keeps Light's CRF");
+    check(webmDefault.contains(QStringLiteral("32")), "webm keeps the default CRF");
+    check(webmDefault.indexOf(QStringLiteral("-cpu-used")) + 1
+                  == webmDefault.indexOf(QStringLiteral("3")),
+          "webm maps fast to -cpu-used 3");
 
     const QStringList webmUltra = EncoderController::buildCommand(
         QStringLiteral("/in.mp4"), ultra->args, QStringLiteral("/out/clip.webm"), true, C::Webm);
@@ -116,11 +122,22 @@ int main()
         QStringLiteral("/out/clip.webm"), true, C::Webm);
     check(unmapped.contains(QStringLiteral("libx264")), "webm leaves an unmapped codec alone");
 
+    // No preset stream-copies audio since Light was dropped, but the rule that a copy cannot
+    // live in WebM still holds, and this is the only thing keeping that entry covered.
+    const QStringList copied = EncoderController::buildCommand(
+        QStringLiteral("/in.mp4"),
+        {QStringLiteral("-vcodec"), QStringLiteral("libx265"), QStringLiteral("-acodec"),
+         QStringLiteral("copy")},
+        QStringLiteral("/out/clip.webm"), true, C::Webm);
+    check(copied.indexOf(QStringLiteral("-acodec")) + 1 == copied.indexOf(QStringLiteral("libopus")),
+          "webm turns a stream copy into an opus encode");
+
     // mp4 and mkv accept HEVC, so they must keep receiving exactly the preset's own args.
-    const QStringList mkvLight = EncoderController::buildCommand(
-        QStringLiteral("/in.mp4"), light->args, QStringLiteral("/out/clip.mkv"), true, C::Mkv);
-    check(mkvLight.contains(QStringLiteral("libx265")) && mkvLight.contains(QStringLiteral("copy"))
-              && mkvLight.contains(QStringLiteral("-preset")),
+    const QStringList mkvDefault = EncoderController::buildCommand(
+        QStringLiteral("/in.mp4"), def->args, QStringLiteral("/out/clip.mkv"), true, C::Mkv);
+    check(mkvDefault.contains(QStringLiteral("libx265"))
+              && mkvDefault.contains(QStringLiteral("aac"))
+              && mkvDefault.contains(QStringLiteral("-preset")),
           "mkv passes the preset through unchanged");
 
     std::fprintf(stderr, gFailures == 0 ? "\nAll checks passed\n"

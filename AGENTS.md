@@ -80,7 +80,11 @@ Related ordering constraints, both load-bearing:
 
 ## UI directives (from the user, not style preferences)
 
-- **Preset labels are bare**: `Light`, `Medium`, `Strong`, `ULTRA`. No `SHAKAL ` prefix.
+- **There is no preset picker.** Two presets exist, `default` (CRF 32) and `ULTRA`, and the checkbox
+  labelled **Shakal ULTRA** sitting to the right of the container combo is the only way to reach
+  ULTRA. An unchecked box always means `default`. Do not reintroduce a preset combo, and do not rename
+  the checkbox label — "Shakal ULTRA" is the user's wording, and it is the one place the app name
+  appears in the UI.
 - **The progress bar is a plain, full-width bar with no percentage text.** `setTextVisible(false)` is
   deliberate: the percentage reserves space and insets the groove, making the bar narrower than the log
   pane below it. Keep it spanning the full row.
@@ -88,11 +92,14 @@ Related ordering constraints, both load-bearing:
   determinate range when the run ends.
 - ULTRA's hardcoded `scale=320:180,fps=12,scale=1920:1080` **aspect-distorts non-16:9 sources on
   purpose**. Do not "fix" it; maximum degradation is the preset's point.
+- **The Input file field takes drops**, and dropping or browsing for a file fills the output directory
+  from that file's own folder (`MainWindow::applyInputPath`). The drop target is the field, not the
+  window, so a drop meant for another widget is never swallowed.
 
 ## Container/codec mapping (WebM)
 
 Every preset is written in `libx265` + AAC terms, but the WebM muxer accepts only VP8/VP9/AV1 video
-and Vorbis/Opus audio. Selecting WebM used to fail at mux time with exit 234 for all four presets.
+and Vorbis/Opus audio. Selecting WebM used to fail at mux time with exit 234 for either preset.
 
 `EncoderController::buildCommand` now re-expresses the codec flags when the container is WebM:
 
@@ -100,14 +107,14 @@ and Vorbis/Opus audio. Selecting WebM used to fail at mux time with exit 234 for
 | --- | --- |
 | `-vcodec libx265` | `-vcodec libvpx-vp9` |
 | `-acodec aac` | `-acodec libopus` |
-| `-acodec copy` (Light) | `-acodec libopus` — stream-copying AAC into WebM cannot work |
-| `-preset slow/medium/fast/ultrafast` | `-cpu-used 1/2/3/4` |
+| `-acodec copy` | `-acodec libopus` — stream-copying AAC into WebM cannot work. No preset asks for a copy since `Light` was removed; the entry encodes the container rule, not a current flag. |
+| `-preset fast` / `-preset ultrafast` | `-cpu-used 3` / `-cpu-used 4` |
 
 Keep the CRF numbers and the `-vf` chain as they are: they *are* the degradation, and VP9's CRF range
-(0-63) covers all four values. The mapping is deliberately not a blind overwrite — a codec outside the
+(0-63) covers both values. The mapping is deliberately not a blind overwrite — a codec outside the
 tables is passed through untouched so ffmpeg's own `Only VP8 or VP9...` error reaches the log pane
 instead of an encoder being substituted silently. That choice is also what keeps a real mux rejection
-reachable for `muxFailureRemovesJunkFile`: `Light` + WebM can no longer fail.
+reachable for `muxFailureRemovesJunkFile`: neither preset can fail that way any more.
 
 `-preset` is dropped rather than kept because libvpx ignores it, emitting "Codec AVOption preset has
 not been used" into the log for a flag that does nothing. `-cpu-used` is the equivalent knob (higher =
@@ -117,8 +124,10 @@ args unchanged.
 
 ## Out of scope
 
-Batch/queue, drag-and-drop, folder input, user-editable presets, preset persistence, video preview,
+Batch/queue, folder input, user-editable presets, preset persistence, video preview,
 CMake `install()` targets, `.desktop` entries, CPack packaging. Delivery is build-dir only.
+Drag-and-drop is **no longer** out of scope: the Input file field takes drops by user request on
+2026-10-27, and a preset *picker* is gone for good — the ULTRA checkbox replaced it the same day.
 
 ## Verifying GUI changes
 

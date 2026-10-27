@@ -139,7 +139,6 @@ void TstEncoder::cleanEncodeSucceeds()
 void TstEncoder::webmEncodeUsesWebmCodecs()
 {
     // The bug: every preset names libx265, and the WebM muxer refuses HEVC outright.
-    // Light is the harshest case because its -acodec copy cannot be honoured either.
     const QString input = makeInput(QStringLiteral("src_webm"), QStringLiteral("320x240"),
                                     QStringLiteral("1"), QStringLiteral("aac"),
                                     QStringLiteral("mp4"));
@@ -151,7 +150,7 @@ void TstEncoder::webmEncodeUsesWebmCodecs()
     QSignalSpy failed(&encoder, &EncoderController::failed);
     QSignalSpy done(&encoder, &EncoderController::runFinished);
 
-    encoder.start(input, preset(QStringLiteral("Light")).args, output, false, Container::Webm);
+    encoder.start(input, preset(QStringLiteral("default")).args, output, false, Container::Webm);
     QVERIFY(done.wait(kEncodeTimeoutMs));
 
     QVERIFY2(succeeded.count() == 1,
@@ -205,7 +204,7 @@ void TstEncoder::muxFailureRemovesJunkFile()
 {
     // Verified on this host: a codec the WebM muxer refuses fails with exit 234 after ffmpeg
     // has already written a ~262 byte stub, and it still prints progress=end.
-    // Light + webm can no longer reach this path because the mapping re-expresses libx265 as
+    // Neither preset can reach this path any more because the mapping re-expresses libx265 as
     // VP9, so the rejection is forced through a codec the mapping deliberately leaves alone.
     const QString input = makeInput(QStringLiteral("src_ac3"), QStringLiteral("640x360"),
                                     QStringLiteral("2"), QStringLiteral("ac3"),

@@ -3,6 +3,7 @@
 #include <EncoderController.h>
 #include <QWidget>
 
+class QCheckBox;
 class QComboBox;
 class QLineEdit;
 class QPlainTextEdit;
@@ -15,6 +16,9 @@ class MainWindow : public QWidget
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void browseInput();
@@ -32,12 +36,13 @@ private:
     QString containerFilter() const;
     bool resolveOutput(QString &output, bool &overwrite);
     void applyChosenPath(const QString &path);
+    void applyInputPath(const QString &path);
 
     QLineEdit *m_input;
     QLineEdit *m_outputDir;
     QLineEdit *m_fileName;
-    QComboBox *m_preset;
     QComboBox *m_container;
+    QCheckBox *m_ultra;
     QPushButton *m_encode;
     QPushButton *m_cancel;
     QProgressBar *m_progress;
