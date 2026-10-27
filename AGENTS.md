@@ -157,8 +157,12 @@ belongs to the user, not to the agent.
    observed.
 3. An `offscreen` platform run proves construction only. Never report "the GUI works" from it.
 4. Do not synthesize input or narrate a test you did not run. State plainly which paths the automated
-   suites cover and which need the user's click-through (Encode, Cancel, the overwrite dialog, the
-   drag-and-drop and autofill behaviour, the checkbox-to-preset link).
+   suites cover and which still need the user's click-through.
+
+**Baseline confirmed by the user's own run on 2026-10-27:** Encode (including the WebM path), Cancel,
+the overwrite dialog, drag-and-drop with output-directory autofill, and the checkbox-to-preset link all
+work as shipped. That closes those paths for the current build only — a new UI change reopens the
+requirement, so never cite this line as evidence that your own change works.
 
 ## Git conventions
 
