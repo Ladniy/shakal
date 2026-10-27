@@ -174,8 +174,9 @@ versioned next to the code it builds, and is copied into the AUR checkout when p
   mirror of the upstream repo at `packaging/aur/shakal/` — outside `src/`, so `makepkg -c` does not remove
   it. Revert the `pkgver` line, keep the mirror ignored, and never present either as a change you made.
   A `shakal-git-debug` package is built alongside; it needs no install.
-- Publishing is a public action: never `git push` to `aur@aur4.archlinux.org` without an explicit
-  request. The AUR key is configured separately from the ordinary archlinux.org SSH key.
+- Publishing is a public action: never `git push` to `aur@aur.archlinux.org` without an explicit
+  request. The AUR key is configured separately from the ordinary archlinux.org SSH key, and the package
+  branch is `master` — not `main`.
 
 ## Verifying GUI changes
 
