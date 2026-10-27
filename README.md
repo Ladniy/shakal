@@ -1,6 +1,6 @@
 # shakal
 
-A Qt 6 desktop front end for a set of deliberately aggressive `ffmpeg` presets.
+A Qt 6 desktop front end for a deliberately aggressive `ffmpeg` preset.
 
 ## Requirements
 
@@ -52,19 +52,19 @@ because ffmpeg exits 0 after declining to overwrite a file.
 
 ## Presets
 
-There is no preset picker. Every encode runs the **default** preset unless the
-**Shakal ULTRA** checkbox next to the container combo is ticked, which is the only way
-to reach ULTRA. Both presets encode video with `libx265`.
+shakal has **one** preset. There is no preset picker and no strength ladder — every encode runs
+`default`, and the **Shakal ULTRA** checkbox next to the container combo is the only other thing the
+button can do.
 
-| Preset | CRF | Encoder speed | Audio |
+| | CRF | Encoder speed | Audio |
 | --- | --- | --- | --- |
 | default | 32 | fast | AAC 96k |
-| ULTRA | 42 | ultrafast | AAC 48k, plus `scale=320:180,fps=12,scale=1920:1080:flags=neighbor` |
+| Shakal ULTRA | 42 | ultrafast | AAC 48k, plus `scale=320:180,fps=12,scale=1920:1080:flags=neighbor` |
 
-ULTRA downscales to 320x180 at 12 fps and nearest-neighbour upscales back to
-1920x1080. Those numbers are hardcoded, so a source that is not 16:9 gets
-aspect-distorted — that is the preset's intent, not a bug to fix.
+ULTRA is a joke rather than a serious setting. It downscales to 320x180 at 12 fps and nearest-neighbour
+upscales back to 1920x1080, so a source that is not 16:9 comes out aspect-distorted — the numbers are
+hardcoded on purpose and that is the punchline, not a bug to fix.
 
-Both presets re-encode audio, so no container choice can fail on a copied stream.
-WebM is the exception at the *video* level: it takes no HEVC at all, so shakal
-re-expresses the codec flags for that container — see `AGENTS.md`.
+Both rows encode video with `libx265` and re-encode audio, so no container choice can fail on a copied
+stream. WebM is the exception at the *video* level: it takes no HEVC at all, so shakal re-expresses the
+codec flags for that container — see `AGENTS.md`.

@@ -4,8 +4,10 @@ Guidance for automated agents working in this repository.
 
 ## What shakal is
 
-A native **C++17 / Qt 6 Widgets** desktop app that drives `ffmpeg` through `QProcess` to apply four
-deliberately aggressive video-degradation presets.
+A native **C++17 / Qt 6 Widgets** desktop app that drives `ffmpeg` through `QProcess` to apply one
+deliberately aggressive video-degradation preset. A second, much harsher one — **Shakal ULTRA** — sits
+behind a checkbox and is a joke that came out of a meme; it is not part of a graded ladder, and there
+used to be a four-preset ladder here. See `## Presets`.
 
 There is **no Python in this project**. The original `questionary` TUI was deleted on 2026-10-26 and
 replaced by the Qt app. Do not look for `pyproject.toml`, `uv.lock`, or a venv, and do not propose
@@ -39,6 +41,21 @@ ctest --test-dir build/debug --output-on-failure
 | `tests/tst_encoder.cpp` | QtTest round-trips against real ffmpeg: success, refused overwrite, mux failure, cancel |
 
 Keep encode-path logic in `EncoderController`. `MainWindow` should stay a thin view.
+
+## Presets
+
+There is **one** preset, labelled `default` in `src/Presets.h`: HEVC at CRF 32 with AAC 96k. That is
+what runs on every encode.
+
+`ULTRA` is not a rung on a ladder — it is the easter egg behind the **Shakal ULTRA** checkbox, a joke
+that came out of a meme in the Russian-speaking space. It is deliberately absurd rather than merely
+stronger: it downscales to 320x180 at 12 fps and nearest-neighbour upscales back to 1920x1080, which
+aspect-distorts any source that is not 16:9. That distortion is the point.
+
+The table used to hold a graded four — `Light` / `Medium` / `Strong` / `ULTRA` — picked from a combo.
+That ladder is gone and should not be reconstructed: `Strong` became `default`, `Light` and `Medium`
+were deleted, and the combo was replaced by the checkbox. Nothing in the code, comments, tests or docs
+should keep describing the current shape as a range of strengths.
 
 ## The success invariant — do not simplify
 
@@ -80,11 +97,11 @@ Related ordering constraints, both load-bearing:
 
 ## UI directives (from the user, not style preferences)
 
-- **There is no preset picker.** Two presets exist, `default` (CRF 32) and `ULTRA`, and the checkbox
-  labelled **Shakal ULTRA** sitting to the right of the container combo is the only way to reach
-  ULTRA. An unchecked box always means `default`. Do not reintroduce a preset combo, and do not rename
-  the checkbox label — "Shakal ULTRA" is the user's wording, and it is the one place the app name
-  appears in the UI.
+- **There is no preset picker.** One preset (`default`, CRF 32) runs on every encode, and the checkbox
+  labelled **Shakal ULTRA** sitting to the right of the container combo is the only way to reach the
+  ULTRA easter egg. An unchecked box always means `default`. Do not reintroduce a preset combo, do not
+  add preset rungs, and do not rename the checkbox label — "Shakal ULTRA" is the user's wording, and it
+  is the one place the app name appears in the UI.
 - **The progress bar is a plain, full-width bar with no percentage text.** `setTextVisible(false)` is
   deliberate: the percentage reserves space and insets the groove, making the bar narrower than the log
   pane below it. Keep it spanning the full row.
@@ -98,29 +115,29 @@ Related ordering constraints, both load-bearing:
 
 ## Container/codec mapping (WebM)
 
-Every preset is written in `libx265` + AAC terms, but the WebM muxer accepts only VP8/VP9/AV1 video
-and Vorbis/Opus audio. Selecting WebM used to fail at mux time with exit 234 for either preset.
+Both table entries are written in `libx265` + AAC terms, but the WebM muxer accepts only VP8/VP9/AV1
+video and Vorbis/Opus audio. Selecting WebM used to fail at mux time with exit 234 for either one.
 
 `EncoderController::buildCommand` now re-expresses the codec flags when the container is WebM:
 
-| Preset flag | WebM argv |
+| Flag in the table | WebM argv |
 | --- | --- |
 | `-vcodec libx265` | `-vcodec libvpx-vp9` |
 | `-acodec aac` | `-acodec libopus` |
-| `-acodec copy` | `-acodec libopus` — stream-copying AAC into WebM cannot work. No preset asks for a copy since `Light` was removed; the entry encodes the container rule, not a current flag. |
+| `-acodec copy` | `-acodec libopus` — stream-copying AAC into WebM cannot work. No entry asks for a copy any more; the row encodes the container rule, not a current flag. |
 | `-preset fast` / `-preset ultrafast` | `-cpu-used 3` / `-cpu-used 4` |
 
 Keep the CRF numbers and the `-vf` chain as they are: they *are* the degradation, and VP9's CRF range
 (0-63) covers both values. The mapping is deliberately not a blind overwrite — a codec outside the
 tables is passed through untouched so ffmpeg's own `Only VP8 or VP9...` error reaches the log pane
 instead of an encoder being substituted silently. That choice is also what keeps a real mux rejection
-reachable for `muxFailureRemovesJunkFile`: neither preset can fail that way any more.
+reachable for `muxFailureRemovesJunkFile`: neither entry can fail that way any more.
 
-`-preset` is dropped rather than kept because libvpx ignores it, emitting "Codec AVOption preset has
+`-preset` is replaced rather than kept because libvpx ignores it, emitting "Codec AVOption preset has
 not been used" into the log for a flag that does nothing. `-cpu-used` is the equivalent knob (higher =
-faster), and the four values stay inside 0-4, which works in every libvpx rate-control mode. mp4 and
-mkv are permissive (HEVC, and even copied Vorbis/Opus, all mux fine on this host) and get the preset
-args unchanged.
+faster), and both values stay inside 0-4, which works in every libvpx rate-control mode; the table
+lists only the two speed names the entries actually emit. mp4 and mkv are permissive (HEVC, and even
+copied Vorbis/Opus, all mux fine on this host) and get the args unchanged.
 
 ## Out of scope
 
@@ -131,16 +148,17 @@ Drag-and-drop is **no longer** out of scope: the Input file field takes drops by
 
 ## Verifying GUI changes
 
-A green build and passing tests are **not** sufficient to claim UI work is done.
+A green build and passing tests are **not** sufficient to claim UI work is done — but the human check
+belongs to the user, not to the agent.
 
 1. Build, then launch the real binary on the desktop: `QT_QPA_PLATFORM=wayland ./build/debug/shakal`.
-2. Capture and inspect actual pixels. On this host (KDE Plasma on Wayland) use `spectacle -b -n -o
-   shot.png`; `grim` is not installed and ImageMagick's `import` cannot see native Wayland windows.
-   The desktop is 5120×1440 — downscale or crop before viewing, and locate the window in a full-desktop
-   overview first, since it does not reopen at a fixed position.
+2. **Do not take screenshots.** The user banned assistant-initiated captures on 2026-10-27. Launch the
+   app, say what to look at, and hand it over. Never report what the window looks like as something you
+   observed.
 3. An `offscreen` platform run proves construction only. Never report "the GUI works" from it.
-4. **Interactive click-through is the user's own task.** Launch the app and hand it over; do not
-   attempt to synthesize input or narrate a test you did not run.
+4. Do not synthesize input or narrate a test you did not run. State plainly which paths the automated
+   suites cover and which need the user's click-through (Encode, Cancel, the overwrite dialog, the
+   drag-and-drop and autofill behaviour, the checkbox-to-preset link).
 
 ## Git conventions
 
@@ -148,4 +166,3 @@ A green build and passing tests are **not** sufficient to claim UI work is done.
   `clean up`). Bodies explain *why*, in plain prose.
 - Commit only when asked. Never push without an explicit request.
 - Stage only the paths belonging to the change — not `git add -A`.
-- The three Qt6 commits are currently **local only**; `origin/main` still points at the Python history.

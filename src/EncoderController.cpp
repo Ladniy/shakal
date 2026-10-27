@@ -13,23 +13,21 @@ constexpr int kCancelGraceMs = 5000;
 constexpr int kKillGraceMs = 3000;
 constexpr int kStdinFlushMs = 200;
 
-// The WebM muxer accepts only VP8/VP9/AV1 video and Vorbis/Opus audio, while every preset
-// is written in libx265/AAC terms, so the codec flags must be re-expressed per container.
+// The WebM muxer accepts only VP8/VP9/AV1 video and Vorbis/Opus audio, while both table entries
+// are written in libx265/AAC terms, so the codec flags must be re-expressed per container.
 // Verified on this host 2026-10-26: libx265 into webm dies at mux with exit 234 after the
-// muxer has written a 262-byte stub, and copying AAC into webm fails the same way -- hence
-// the copy entry, which covers any preset that asks for a stream copy regardless of codec.
+// muxer has written a 262-byte stub, and copying AAC into webm fails the same way -- hence the
+// copy entry, which encodes that container rule even though no entry asks for a copy today.
 const QHash<QString, QString> kVideoCodec{{QStringLiteral("libx265"),
                                            QStringLiteral("libvpx-vp9")}};
 const QHash<QString, QString> kAudioCodec{{QStringLiteral("aac"), QStringLiteral("libopus")},
                                           {QStringLiteral("copy"), QStringLiteral("libopus")}};
 
 // x265's speed names are private to x265: libvpx ignores -preset entirely, only warning that
-// the option "has not been used". -cpu-used is the same knob (higher = faster), and these four
-// values stay inside the 0-4 range that works in every libvpx rate-control mode. The table
-// covers the whole x265 speed ladder, not just the two names the current presets use.
-const QHash<QString, QString> kSpeed{{QStringLiteral("slow"), QStringLiteral("1")},
-                                     {QStringLiteral("medium"), QStringLiteral("2")},
-                                     {QStringLiteral("fast"), QStringLiteral("3")},
+// the option "has not been used". -cpu-used is the same knob (higher = faster). Only the two
+// names the presets actually emit are listed, and both stay inside 0-4, which works in every
+// libvpx rate-control mode; an unlisted speed name is dropped and libvpx keeps its own default.
+const QHash<QString, QString> kSpeed{{QStringLiteral("fast"), QStringLiteral("3")},
                                      {QStringLiteral("ultrafast"), QStringLiteral("4")}};
 
 // A codec outside these tables is passed through untouched rather than overwritten: the

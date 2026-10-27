@@ -34,17 +34,17 @@ int main()
 {
     using C = EncoderController::Container;
 
-    check(shakalPresets().size() == 2, "Light and Medium are gone");
-    check(presetByLabel(QStringLiteral("Light")) == nullptr, "Light no longer exists");
-    check(presetByLabel(QStringLiteral("Medium")) == nullptr, "Medium no longer exists");
-    check(presetByLabel(QStringLiteral("Strong")) == nullptr, "Strong was renamed");
+    // Exactly two table entries: the real preset and the easter egg. A third label reappearing
+    // fails the size check, so the old names need no negative assertions of their own.
+    check(shakalPresets().size() == 2, "two table entries");
+    check(presetByLabel(QStringLiteral("ULTRA")) != nullptr, "ULTRA exists");
 
     const Preset *def = presetByLabel(QStringLiteral("default"));
     check(def != nullptr, "default exists");
     check(def && def->args.contains("libx265"), "default uses libx265");
-    check(def && def->args.contains(QStringLiteral("32")), "default keeps Strong's CRF 32");
+    check(def && def->args.contains(QStringLiteral("32")), "default encodes at CRF 32");
     check(def && def->args.contains("aac"), "default re-encodes audio");
-    check(def && !def->args.contains("copy"), "no preset stream-copies audio any more");
+    check(def && !def->args.contains("copy"), "no table entry stream-copies audio");
 
     const Preset *ultra = presetByLabel(QStringLiteral("ULTRA"));
     check(ultra && ultra->args.contains(
@@ -88,8 +88,8 @@ int main()
                   < withOverwrite.indexOf(QStringLiteral("-y")),
           "preset args precede the overwrite flag");
 
-    // WebM refuses the codecs every preset is written in, so buildCommand re-expresses them.
-    // The CRF number and the vf chain are the degradation itself and must survive untouched.
+    // WebM refuses the codecs both table entries are written in, so buildCommand re-expresses
+    // them. The CRF number and the vf chain are the degradation itself and must survive untouched.
     const QStringList webmDefault = EncoderController::buildCommand(
         QStringLiteral("/in.mp4"), def->args, QStringLiteral("/out/clip.webm"), true, C::Webm);
     check(webmDefault.indexOf(QStringLiteral("-vcodec")) + 1
@@ -122,8 +122,8 @@ int main()
         QStringLiteral("/out/clip.webm"), true, C::Webm);
     check(unmapped.contains(QStringLiteral("libx264")), "webm leaves an unmapped codec alone");
 
-    // No preset stream-copies audio since Light was dropped, but the rule that a copy cannot
-    // live in WebM still holds, and this is the only thing keeping that entry covered.
+    // No table entry stream-copies audio, but the rule that a copy cannot live in WebM still
+    // holds, and this is the only thing keeping that entry covered.
     const QStringList copied = EncoderController::buildCommand(
         QStringLiteral("/in.mp4"),
         {QStringLiteral("-vcodec"), QStringLiteral("libx265"), QStringLiteral("-acodec"),

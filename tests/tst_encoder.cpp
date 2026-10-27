@@ -138,7 +138,7 @@ void TstEncoder::cleanEncodeSucceeds()
 
 void TstEncoder::webmEncodeUsesWebmCodecs()
 {
-    // The bug: every preset names libx265, and the WebM muxer refuses HEVC outright.
+    // The bug: both table entries name libx265, and the WebM muxer refuses HEVC outright.
     const QString input = makeInput(QStringLiteral("src_webm"), QStringLiteral("320x240"),
                                     QStringLiteral("1"), QStringLiteral("aac"),
                                     QStringLiteral("mp4"));

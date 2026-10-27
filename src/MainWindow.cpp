@@ -129,7 +129,7 @@ MainWindow::MainWindow(QWidget *parent)
     if (!m_hevcAvailable) {
         m_encode->setEnabled(false);
         m_log->appendPlainText(
-            tr("This ffmpeg build has no libx265, so every preset would fail. Encode disabled."));
+            tr("This ffmpeg build has no libx265, so no encode would work. Encode disabled."));
     }
 }
 
