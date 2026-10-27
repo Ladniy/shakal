@@ -169,6 +169,11 @@ versioned next to the code it builds, and is copied into the AUR checkout when p
 - `.SRCINFO` is **not** tracked here on purpose: it is generated, and its `pkgver` goes stale the moment
   `main` moves. Generate it into the AUR checkout at publish time with `makepkg --printsrcinfo > .SRCINFO`
   and never hand-edit it. If it appears in `packaging/aur/`, it is a local artifact — do not add it.
+- Building locally leaves two things that look like source edits but are makepkg's own bookkeeping: it
+  rewrites the tracked `pkgver=` line in place with the computed value, and its git handler drops a bare
+  mirror of the upstream repo at `packaging/aur/shakal/` — outside `src/`, so `makepkg -c` does not remove
+  it. Revert the `pkgver` line, keep the mirror ignored, and never present either as a change you made.
+  A `shakal-git-debug` package is built alongside; it needs no install.
 - Publishing is a public action: never `git push` to `aur@aur4.archlinux.org` without an explicit
   request. The AUR key is configured separately from the ordinary archlinux.org SSH key.
 

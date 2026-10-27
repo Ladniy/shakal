@@ -11,3 +11,5 @@ pkg/
 .SRCINFO
 packaging/aur/src/
 packaging/aur/pkg/
+# bare mirror makepkg's git handler leaves beside the PKGBUILD
+packaging/aur/shakal/
