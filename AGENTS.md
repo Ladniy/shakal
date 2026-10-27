@@ -174,6 +174,11 @@ versioned next to the code it builds, and is copied into the AUR checkout when p
   mirror of the upstream repo at `packaging/aur/shakal/` — outside `src/`, so `makepkg -c` does not remove
   it. Revert the `pkgver` line, keep the mirror ignored, and never present either as a change you made.
   A `shakal-git-debug` package is built alongside; it needs no install.
+- A plain `paru -Syu` / `yay -Syu` will never upgrade the package, and this is not a defect to fix: the
+  helper compares the installed version against the static `pkgver=` seed in the PKGBUILD, which only
+  `pkgver()` recomputes at build time. Users need `--devel` (or `Devel` in the helper config), which is
+  what `README.md#updating` tells them. Do not chase this by pushing a restamped `.SRCINFO` after every
+  upstream commit.
 - Publishing is a public action: never `git push` to `aur@aur.archlinux.org` without an explicit
   request. The AUR key is configured separately from the ordinary archlinux.org SSH key, and the package
   branch is `master` — not `main`.

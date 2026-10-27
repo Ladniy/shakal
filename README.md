@@ -25,6 +25,19 @@ cd packaging/aur
 makepkg -sri
 ```
 
+### Updating
+
+A plain system upgrade will not move shakal. AUR helpers compare the installed version against the static
+`pkgver` written in the recipe, and that number only changes when someone builds the package — so the
+helper reports shakal as current even when `main` has new commits. Ask the helper to check upstream:
+
+```sh
+paru -Syu --devel     # or: yay -Syu --devel
+```
+
+There is nothing to wait for when `main` moves: the recipe pulls that branch at build time, so the push
+itself is the release. Enabling `Devel` in the helper's config makes the check permanent.
+
 ## Build
 
 ```sh
